@@ -1,28 +1,20 @@
-// funções utilitárias
+<IfModule mod_rewrite.c>
+    RewriteEngine On
 
-<?php
-// src/helpers.php
-session_start();
+    # Diretório base do projeto (EXATO)
+    RewriteBase /encomendas-do-chef---gestor/
 
-function is_logged_in() {
-    return isset($_SESSION['gestor_id']);
-}
+    # Se arquivo ou pasta existir, entrega normal
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
 
-function require_login() {
-    if (!is_logged_in()) {
-        header('Location: /encomendas_chef_gestor/login');
-        exit;
-    }
-}
+    # Tudo para o index.php
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
 
-function flash_set($k, $v) {
-    $_SESSION['flash'][$k] = $v;
-}
-function flash_get($k) {
-    if (isset($_SESSION['flash'][$k])) {
-        $v = $_SESSION['flash'][$k];
-        unset($_SESSION['flash'][$k]);
-        return $v;
-    }
-    return null;
-}
+# Proteger arquivos sensíveis
+<FilesMatch "^(\.env|composer\.json|composer\.lock|\.htaccess)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes

@@ -1,16 +1,22 @@
 <?php
 
-namespace Controllers;
+namespace App\Controllers;
 
-use Models\Categoria;
+use Core\Controller;
+use Core\Database;
 
+/**
+ * Controller responsável por gerenciar as categorias.
+ */
 class CategoriaController extends Controller
 {
-    private $categoriaModel;
+    private $db;
 
     public function __construct()
     {
-        $this->categoriaModel = new Categoria();
+        // Inicia a conexão com o banco
+        $this->db = new Database();
+        session_start();
     }
 
     /**
@@ -18,56 +24,38 @@ class CategoriaController extends Controller
      */
     public function index()
     {
-        $this->requireAuth();
-        
-        $categorias = $this->categoriaModel->all('cat_nome ASC');
-        
-        return $this->view('categorias/index', [
+        $categorias = $this->db->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+
+        $this->view('categorias/index', [
             'categorias' => $categorias
         ]);
     }
 
     /**
-     * Exibe formulário para nova categoria
+     * Exibe o formulário de criação
      */
     public function create()
     {
-        $this->requireAuth();
-        
-        return $this->view('categorias/create');
+        $this->view('categorias/create');
     }
 
     /**
-     * Salva nova categoria
+     * Salva uma nova categoria
      */
     public function store()
     {
-        $this->requireAuth();
-        
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->redirect('/categorias');
-        }
+        $nome = trim($_POST['nome'] ?? '');
 
-        $nome = $this->sanitize($_POST['cat_nome'] ?? '');
-        
-        // Validação
         if (empty($nome)) {
-            $this->setFlash('error', 'Nome da categoria é obrigatório!');
-            return $this->redirect('/categorias/add');
+            $_SESSION['erro'] = "O nome da categoria é obrigatório!";
+            $this->redirect('/categorias/add');
         }
 
-        try {
-            $this->categoriaModel->create([
-                'cat_nome' => $nome
-            ]);
-            
-            $this->setFlash('success', 'Categoria criada com sucesso!');
-            return $this->redirect('/categorias');
-            
-        } catch (\Exception $e) {
-            $this->setFlash('error', 'Erro ao criar categoria: ' . $e->getMessage());
-            return $this->redirect('/categorias/add');
-        }
+        $sql = "INSERT INTO categorias (nome) VALUES (:nome)";
+        $this->db->query($sql, [':nome' => $nome]);
+
+        $_SESSION['sucesso'] = "Categoria cadastrada com sucesso!";
+        $this->redirect('/categorias');
     }
 
     /**
@@ -75,83 +63,52 @@ class CategoriaController extends Controller
      */
     public function edit($id)
     {
-        $this->requireAuth();
-        
-        $categoria = $this->categoriaModel->find($id);
-        
+        $categoria = $this->db->query(
+            "SELECT * FROM categorias WHERE id = :id",
+            [':id' => $id]
+        )->fetch();
+
         if (!$categoria) {
-            $this->setFlash('error', 'Categoria não encontrada!');
-            return $this->redirect('/categorias');
+            $_SESSION['erro'] = "Categoria não encontrada!";
+            $this->redirect('/categorias');
         }
 
-        return $this->view('categorias/edit', [
+        $this->view('categorias/edit', [
             'categoria' => $categoria
         ]);
     }
 
     /**
-     * Atualiza categoria
+     * Atualiza categoria existente
      */
     public function update($id)
     {
-        $this->requireAuth();
-        
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->redirect('/categorias');
-        }
+        $nome = trim($_POST['nome'] ?? '');
 
-        $categoria = $this->categoriaModel->find($id);
-        
-        if (!$categoria) {
-            $this->setFlash('error', 'Categoria não encontrada!');
-            return $this->redirect('/categorias');
-        }
-
-        $nome = $this->sanitize($_POST['cat_nome'] ?? '');
-        
-        // Validação
         if (empty($nome)) {
-            $this->setFlash('error', 'Nome da categoria é obrigatório!');
-            return $this->redirect('/categorias/edit/' . $id);
+            $_SESSION['erro'] = "O nome da categoria é obrigatório!";
+            $this->redirect("/categorias/edit/$id");
         }
 
-        try {
-            $this->categoriaModel->update($id, [
-                'cat_nome' => $nome
-            ]);
-            
-            $this->setFlash('success', 'Categoria atualizada com sucesso!');
-            return $this->redirect('/categorias');
-            
-        } catch (\Exception $e) {
-            $this->setFlash('error', 'Erro ao atualizar categoria: ' . $e->getMessage());
-            return $this->redirect('/categorias/edit/' . $id);
-        }
+        $sql = "UPDATE categorias SET nome = :nome WHERE id = :id";
+        $this->db->query($sql, [
+            ':nome' => $nome,
+            ':id' => $id
+        ]);
+
+        $_SESSION['sucesso'] = "Categoria atualizada com sucesso!";
+        $this->redirect('/categorias');
     }
 
     /**
-     * Exclui categoria
+     * Remove uma categoria
      */
     public function delete($id)
     {
-        $this->requireAuth();
-        
-        $categoria = $this->categoriaModel->find($id);
-        
-        if (!$categoria) {
-            $this->setFlash('error', 'Categoria não encontrada!');
-            return $this->redirect('/categorias');
-        }
+        $sql = "DELETE FROM categorias WHERE id = :id";
+        $this->db->query($sql, [':id' => $id]);
 
-        try {
-            $this->categoriaModel->delete($id);
-            
-            $this->setFlash('success', 'Categoria excluída com sucesso!');
-            return $this->redirect('/categorias');
-            
-        } catch (\Exception $e) {
-            $this->setFlash('error', 'Erro ao excluir categoria: ' . $e->getMessage());
-            return $this->redirect('/categorias');
-        }
+        $_SESSION['sucesso'] = "Categoria removida com sucesso!";
+        $this->redirect('/categorias');
     }
 }

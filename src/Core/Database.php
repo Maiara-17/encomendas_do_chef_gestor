@@ -2,75 +2,36 @@
 
 namespace Core;
 
-use PDO;
-use PDOException;
-
-/**
- * Database - Gerencia conexão com banco de dados (Singleton)
- */
 class Database
 {
     private static $instance = null;
-    private $pdo;
+    private $connection;
 
-    /**
-     * Construtor privado (Singleton)
-     */
+    // Construtor privado para singleton
     private function __construct()
     {
-        $config = require __DIR__ . '/../../config/database.php';
-        
-        $dsn = sprintf(
-            "mysql:host=%s;dbname=%s;charset=%s",
-            $config['host'],
-            $config['dbname'],
-            $config['charset']
-        );
+        $this->connection = new \mysqli('localhost', 'root', '', 'encomendas_chef_db');
 
-        try {
-            $this->pdo = new PDO($dsn, $config['user'], $config['pass'], [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES   => false,
-            ]);
-        } catch (PDOException $e) {
-            die("Erro de conexão com o banco de dados: " . $e->getMessage());
+        if ($this->connection->connect_error) {
+            die('Erro de conexão: ' . $this->connection->connect_error);
         }
+
+        // Definir charset UTF-8
+        $this->connection->set_charset('utf8mb4');
     }
 
-    /**
-     * Retorna instância única da conexão (Singleton)
-     *
-     * @return Database
-     */
+    // Retorna a instância única do Database
     public static function getInstance()
     {
         if (self::$instance === null) {
-            self::$instance = new self();
+            self::$instance = new Database();
         }
         return self::$instance;
     }
 
-    /**
-     * Retorna o objeto PDO
-     *
-     * @return PDO
-     */
+    // Retorna a conexão mysqli
     public function getConnection()
     {
-        return $this->pdo;
-    }
-
-    /**
-     * Previne clonagem
-     */
-    private function __clone() {}
-
-    /**
-     * Previne deserialização
-     */
-    public function __wakeup()
-    {
-        throw new \Exception("Não é possível deserializar um Singleton");
+        return $this->connection;
     }
 }

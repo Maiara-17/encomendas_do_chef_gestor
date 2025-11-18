@@ -1,49 +1,47 @@
 <?php
 
-namespace Controllers;
+namespace App\Controllers;
 
-use Models\Pedido;
-use Models\Produto;
-use Models\Categoria;
-
-/**
- * DashboardController - Gerencia o dashboard principal
- */
-class DashboardController extends Controller
+class AuthController
 {
-    public function __construct()
+    public function login()
     {
-        $this->requireAuth();
+        require_once __DIR__ . '/../../views/auth/login.php';
     }
 
-    /**
-     * Exibe o dashboard principal
-     */
-    public function index()
+    public function entrar()
     {
-        $pedidoModel = new Pedido();
-        $produtoModel = new Produto();
-        $categoriaModel = new Categoria();
+        session_start();
 
-        // Estatísticas
-        $stats = [
-            'total_pedidos' => $pedidoModel->count(),
-            'pedidos_pendentes' => $pedidoModel->countByStatus('pendente'),
-            'pedidos_hoje' => $pedidoModel->getPedidosHoje(),
-            'total_produtos' => $produtoModel->count(),
-            'total_categorias' => $categoriaModel->count(),
-            'total_vendas' => $pedidoModel->getTotalVendas()
-        ];
+        $email = $_POST['email'] ?? '';
+        $senha = $_POST['senha'] ?? '';
 
-        // Pedidos recentes
-        $pedidosRecentes = $pedidoModel->getAllWithCliente();
-        // Limita aos 6 mais recentes
-        $pedidosRecentes = array_slice($pedidosRecentes, 0, 6);
+        if ($email === '' || $senha === '') {
+            $_SESSION['erro'] = "Preencha todos os campos!";
+            header("Location: /encomendas-do-chef---gestor/?controller=Auth&action=login");
+            exit;
+        }
 
-        $this->view('dashboard/index', [
-            'stats' => $stats,
-            'pedidos' => $pedidosRecentes,
-            'user' => $this->getAuthUser()
-        ]);
+        if ($email === "admin@admin.com" && $senha === "123") {
+
+            $_SESSION['usuario'] = $email;
+
+            header("Location: /encomendas-do-chef---gestor/?controller=Dashboard&action=index");
+            exit;
+        }
+
+        $_SESSION['erro'] = "Usuário ou senha incorretos!";
+        header("Location: /encomendas-do-chef---gestor/?controller=Auth&action=login");
+        exit;
+    }
+
+    public function sair()
+    {
+        session_start();
+        session_unset();
+        session_destroy();
+
+        header("Location: /encomendas-do-chef---gestor/?controller=Auth&action=login");
+        exit;
     }
 }

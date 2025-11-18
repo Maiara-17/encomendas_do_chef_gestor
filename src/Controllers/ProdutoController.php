@@ -2,18 +2,21 @@
 
 namespace Controllers;
 
-use Models\Produto;
-use Models\Categoria;
+use Core\Controller;
+use Core\Database;
 
+/**
+ * Controller responsável por gerenciar produtos.
+ * Possui funções para listar, criar, editar e excluir produtos.
+ */
 class ProdutoController extends Controller
 {
-    private $produtoModel;
-    private $categoriaModel;
+    private $db;
 
     public function __construct()
     {
-        $this->produtoModel = new Produto();
-        $this->categoriaModel = new Categoria();
+        // Conexão com o banco
+        $this->db = new Database();
     }
 
     /**
@@ -21,215 +24,120 @@ class ProdutoController extends Controller
      */
     public function index()
     {
-        $this->requireAuth();
-        
-        // Buscar produtos com suas categorias
-        $pdo = \Core\Database::getInstance()->getConnection();
-        $stmt = $pdo->query(
-            "SELECT p.*, c.cat_nome 
-             FROM produtos p 
-             LEFT JOIN categorias c ON p.cat_codigo = c.cat_codigo 
-             ORDER BY p.prod_nome ASC"
-        );
-        $produtos = $stmt->fetchAll();
-        
-        return $this->view('produtos/index', [
+        $sql = "SELECT p.*, c.nome AS categoria 
+                FROM produtos p
+                LEFT JOIN categorias c ON c.id = p.categoria_id
+                ORDER BY p.nome ASC";
+
+        $produtos = $this->db->query($sql)->fetchAll();
+
+        $this->view('produtos/index', [
             'produtos' => $produtos
         ]);
     }
 
     /**
-     * Exibe formulário para novo produto
+     * Formulário para cadastrar novo produto
      */
     public function create()
     {
-        $this->requireAuth();
-        
-        $categorias = $this->categoriaModel->all('cat_nome ASC');
-        
-        return $this->view('produtos/create', [
+        // Pegando categorias existentes
+        $categorias = $this->db->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+
+        $this->view('produtos/create', [
             'categorias' => $categorias
         ]);
     }
 
     /**
-     * Salva novo produto
+     * Salva um novo produto no banco
      */
     public function store()
     {
-        $this->requireAuth();
-        
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->redirect('/produtos');
+        $nome = trim($_POST['nome']);
+        $preco = trim($_POST['preco']);
+        $categoria_id = $_POST['categoria_id'];
+
+        // Validações básicas
+        if (empty($nome) || empty($preco) || empty($categoria_id)) {
+            $_SESSION['erro'] = "Todos os campos são obrigatórios!";
+            $this->redirect('/produtos/create');
         }
 
-        $nome = $this->sanitize($_POST['prod_nome'] ?? '');
-        $descricao = $this->sanitize($_POST['prod_descricao'] ?? '');
-        $preco = floatval(str_replace(',', '.', $_POST['prod_preco'] ?? '0'));
-        $categoria = $_POST['cat_codigo'] ?? null;
-        $ativo = isset($_POST['prod_ativo']) ? 1 : 0;
-        
-        // Validações
-        $errors = [];
-        if (empty($nome)) $errors[] = 'Nome do produto é obrigatório!';
-        if ($preco <= 0) $errors[] = 'Preço deve ser maior que zero!';
-        if (empty($categoria)) $errors[] = 'Categoria é obrigatória!';
-        
-        if (!empty($errors)) {
-            $this->setFlash('error', implode('<br>', $errors));
-            return $this->redirect('/produtos/add');
-        }
+        $sql = "INSERT INTO produtos (nome, preco, categoria_id) 
+                VALUES (:nome, :preco, :categoria_id)";
 
-        // Upload de imagem
-        $imagemNome = null;
-        if (!empty($_FILES['prod_imagem']['name'])) {
-            try {
-                $imagemNome = $this->uploadImage($_FILES['prod_imagem'], 'produtos');
-            } catch (\Exception $e) {
-                $this->setFlash('error', 'Erro no upload da imagem: ' . $e->getMessage());
-                return $this->redirect('/produtos/add');
-            }
-        }
+        $this->db->query($sql, [
+            ':nome' => $nome,
+            ':preco' => $preco,
+            ':categoria_id' => $categoria_id
+        ]);
 
-        try {
-            $this->produtoModel->create([
-                'prod_nome' => $nome,
-                'prod_descricao' => $descricao,
-                'prod_preco' => $preco,
-                'cat_codigo' => $categoria,
-                'prod_ativo' => $ativo,
-                'prod_imagem' => $imagemNome
-            ]);
-            
-            $this->setFlash('success', 'Produto criado com sucesso!');
-            return $this->redirect('/produtos');
-            
-        } catch (\Exception $e) {
-            $this->setFlash('error', 'Erro ao criar produto: ' . $e->getMessage());
-            return $this->redirect('/produtos/add');
-        }
+        $_SESSION['sucesso'] = "Produto cadastrado com sucesso!";
+        $this->redirect('/produtos');
     }
 
     /**
-     * Exibe formulário de edição
+     * Formulário de edição de um produto
      */
     public function edit($id)
     {
-        $this->requireAuth();
-        
-        $produto = $this->produtoModel->find($id);
-        
+        $produto = $this->db->query(
+            "SELECT * FROM produtos WHERE id = :id",
+            [':id' => $id]
+        )->fetch();
+
+        $categorias = $this->db->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+
         if (!$produto) {
-            $this->setFlash('error', 'Produto não encontrado!');
-            return $this->redirect('/produtos');
+            $_SESSION['erro'] = "Produto não encontrado!";
+            $this->redirect('/produtos');
         }
 
-        $categorias = $this->categoriaModel->all('cat_nome ASC');
-
-        return $this->view('produtos/edit', [
+        $this->view('produtos/edit', [
             'produto' => $produto,
             'categorias' => $categorias
         ]);
     }
 
     /**
-     * Atualiza produto
+     * Atualiza os dados do produto
      */
     public function update($id)
     {
-        $this->requireAuth();
-        
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->redirect('/produtos');
+        $nome = trim($_POST['nome']);
+        $preco = trim($_POST['preco']);
+        $categoria_id = $_POST['categoria_id'];
+
+        if (empty($nome) || empty($preco) || empty($categoria_id)) {
+            $_SESSION['erro'] = "Todos os campos são obrigatórios!";
+            $this->redirect("/produtos/edit/$id");
         }
 
-        $produto = $this->produtoModel->find($id);
-        
-        if (!$produto) {
-            $this->setFlash('error', 'Produto não encontrado!');
-            return $this->redirect('/produtos');
-        }
+        $sql = "UPDATE produtos 
+                SET nome = :nome, preco = :preco, categoria_id = :categoria_id 
+                WHERE id = :id";
 
-        $nome = $this->sanitize($_POST['prod_nome'] ?? '');
-        $descricao = $this->sanitize($_POST['prod_descricao'] ?? '');
-        $preco = floatval(str_replace(',', '.', $_POST['prod_preco'] ?? '0'));
-        $categoria = $_POST['cat_codigo'] ?? null;
-        $ativo = isset($_POST['prod_ativo']) ? 1 : 0;
-        
-        // Validações
-        $errors = [];
-        if (empty($nome)) $errors[] = 'Nome do produto é obrigatório!';
-        if ($preco <= 0) $errors[] = 'Preço deve ser maior que zero!';
-        if (empty($categoria)) $errors[] = 'Categoria é obrigatória!';
-        
-        if (!empty($errors)) {
-            $this->setFlash('error', implode('<br>', $errors));
-            return $this->redirect('/produtos/edit/' . $id);
-        }
+        $this->db->query($sql, [
+            ':nome' => $nome,
+            ':preco' => $preco,
+            ':categoria_id' => $categoria_id,
+            ':id' => $id
+        ]);
 
-        // Upload de nova imagem (opcional)
-        $imagemNome = $produto['prod_imagem']; // Mantém a imagem atual
-        if (!empty($_FILES['prod_imagem']['name'])) {
-            try {
-                // Remove imagem anterior se existir
-                if ($imagemNome && file_exists(__DIR__ . '/../../uploads/' . $imagemNome)) {
-                    unlink(__DIR__ . '/../../uploads/' . $imagemNome);
-                }
-                
-                $imagemNome = $this->uploadImage($_FILES['prod_imagem'], 'produtos');
-            } catch (\Exception $e) {
-                $this->setFlash('error', 'Erro no upload da imagem: ' . $e->getMessage());
-                return $this->redirect('/produtos/edit/' . $id);
-            }
-        }
-
-        try {
-            $this->produtoModel->update($id, [
-                'prod_nome' => $nome,
-                'prod_descricao' => $descricao,
-                'prod_preco' => $preco,
-                'cat_codigo' => $categoria,
-                'prod_ativo' => $ativo,
-                'prod_imagem' => $imagemNome
-            ]);
-            
-            $this->setFlash('success', 'Produto atualizado com sucesso!');
-            return $this->redirect('/produtos');
-            
-        } catch (\Exception $e) {
-            $this->setFlash('error', 'Erro ao atualizar produto: ' . $e->getMessage());
-            return $this->redirect('/produtos/edit/' . $id);
-        }
+        $_SESSION['sucesso'] = "Produto atualizado com sucesso!";
+        $this->redirect('/produtos');
     }
 
     /**
-     * Exclui produto
+     * Exclui um produto
      */
     public function delete($id)
     {
-        $this->requireAuth();
-        
-        $produto = $this->produtoModel->find($id);
-        
-        if (!$produto) {
-            $this->setFlash('error', 'Produto não encontrado!');
-            return $this->redirect('/produtos');
-        }
+        $sql = "DELETE FROM produtos WHERE id = :id";
+        $this->db->query($sql, [':id' => $id]);
 
-        try {
-            // Remove imagem se existir
-            if ($produto['prod_imagem'] && file_exists(__DIR__ . '/../../uploads/' . $produto['prod_imagem'])) {
-                unlink(__DIR__ . '/../../uploads/' . $produto['prod_imagem']);
-            }
-            
-            $this->produtoModel->delete($id);
-            
-            $this->setFlash('success', 'Produto excluído com sucesso!');
-            return $this->redirect('/produtos');
-            
-        } catch (\Exception $e) {
-            $this->setFlash('error', 'Erro ao excluir produto: ' . $e->getMessage());
-            return $this->redirect('/produtos');
-        }
+        $_SESSION['sucesso'] = "Produto removido!";
+        $this->redirect('/produtos');
     }
 }

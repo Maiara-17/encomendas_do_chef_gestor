@@ -1,60 +1,50 @@
 <?php
 
-
+// Exibir erros (somente desenvolvimento)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-$controller = $_GET['controller'] ?? '';
-$action = $_GET['action'] ?? 'index';
+// =======================
+// AUTOLOAD AJUSTADO
+// =======================
+spl_autoload_register(function ($class) {
 
+    // Remove prefixo App\ (ex: App\Controllers\DashboardController)
+    $class = str_replace('App\\', '', $class);
 
-if ($controller === 'Ajuda' && $action === 'index') {
-    $controllerFile = 'src/Controllers/AjudaController.php'; // CAMINHO CORRETO
+    // Remove prefixo Core\ e ajusta caminho
+    $class = str_replace('Core\\', 'Core/', $class);
 
-    if (file_exists($controllerFile)) {
-        require_once $controllerFile;
-        $ajuda = new AjudaController();
-        $ajuda->index();
-        exit;
-    } else {
-        die("Erro: Controller não encontrado em <code>$controllerFile</code>");
+    // Ajusta separadores de namespace para pastas
+    $file = __DIR__ . '/src/' . str_replace('\\', '/', $class) . '.php';
+
+    if (file_exists($file)) {
+        require_once $file;
     }
-}
+});
 
+// =======================
+// CARREGA CLASSES BASE
+// =======================
+require_once __DIR__ . '/src/Core/Router.php';
+require_once __DIR__ . '/src/Core/Database.php';
 
-if ($controller === 'Termos' && $action === 'index') {
-    $controllerFile = 'src/Controllers/TermosController.php'; 
+// =======================
+// INICIALIZA ROUTER
+// =======================
+$router = new Core\Router();
 
-    if (file_exists($controllerFile)) {
-        require_once $controllerFile;
-        $termos = new TermosController();
-        $termos->index();
-        exit;
-    } else {
-        die("Erro: Controller não encontrado em <code>$controllerFile</code>");
-    }
-}
+// =======================
+// CARREGA ARQUIVO DE ROTAS
+// =======================
+require_once __DIR__ . '/src/routes.php';
 
+// =======================
+// OBTÉM A URL AMIGÁVEL
+// =======================
+$url = isset($_GET['url']) ? '/' . trim($_GET['url'], '/') : '/';
 
-?>
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Acesso Restrito</title>
-    <style>
-        body { font-family: Arial; text-align: center; padding: 50px; background: #f4f4f4; }
-        .box { background: white; padding: 40px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 20px rgba(0,0,0,0.1); max-width: 500px; }
-        h1 { color: #C0392B; }
-        a { color: #FFD700; font-weight: bold; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <div class="box">
-        <h1>Acesso Direto Bloqueado</h1>
-        <p>Esta é uma página interna de ajuda.</p>
-        <p><a href="index.php?controller=Ajuda&action=index">Abrir Central de Ajuda</a></p> <!-- CORRIGIDO O TYPO: controllers → controller -->
-    </div>
-</body>
-</html>
+// =======================
+// DESPACHA ROTA
+// =======================
+$router->dispatch($url);
