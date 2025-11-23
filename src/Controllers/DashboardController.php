@@ -2,46 +2,57 @@
 
 namespace App\Controllers;
 
-class AuthController
+use App\Core\Controller;
+use App\Core\Database;
+
+class DashboardController extends Controller
 {
-    public function login()
+    private $db;
+
+    public function __construct()
     {
-        require_once __DIR__ . '/../../views/auth/login.php';
+        $this->auth();
+        $this->db = Database::getInstance();
     }
 
-    public function entrar()
+    public function index()
     {
-        session_start();
+        // === CONTAGEM TOTAL DE PEDIDOS ===
+        $totalPedidos = $this->db->query("SELECT COUNT(*) AS total FROM pedidos")->fetch()['total'] ?? 0;
 
-        $email = $_POST['email'] ?? '';
-        $senha = $_POST['senha'] ?? '';
+        // === PEDIDOS DO DIA ATUAL ===
+        $pedidosHoje = $this->db->query("
+            SELECT COUNT(*) AS total 
+            FROM pedidos 
+            WHERE DATE(ped_data_elaboracao) = CURDATE()
+        ")->fetch()['total'] ?? 0;
 
-        if ($email === '' || $senha === '') {
-            $_SESSION['erro'] = "Preencha todos os campos!";
-            header("Location: /encomendas-do-chef---gestor/?controller=Auth&action=login");
-            exit;
-        }
+        // === TOTAL DE PRODUTOS ===
+        $totalProdutos = $this->db->query("SELECT COUNT(*) AS total FROM produtos WHERE prod_ativo = 1")->fetch()['total'] ?? 0;
 
-        if ($email === "admin@admin.com" && $senha === "123") {
+        // === TOTAL DE CATEGORIAS ===
+        $totalCategorias = $this->db->query("SELECT COUNT(*) AS total FROM categorias")->fetch()['total'] ?? 0;
 
-            $_SESSION['usuario'] = $email;
+        // === FATURAMENTO DO DIA ===
+        $faturamentoHoje = $this->db->query("
+            SELECT COALESCE(SUM(ped_valor_total), 0) AS total 
+            FROM pedidos 
+            WHERE DATE(ped_data_elaboracao) = CURDATE()
+        ")->fetch()['total'] ?? 0.00;
 
-            header("Location: /encomendas-do-chef---gestor/?controller=Dashboard&action=index");
-            exit;
-        }
+        // === DADOS QUE SERÃO ENVIADOS PARA A VIEW ===
+        $dados = [
+            'titulo'           => 'Dashboard - Encomendas do Chef',
+            'usuario'          => $_SESSION['usuario'] ?? 'Usuário',
+            'page'             => 'dashboard',
+            'totalPedidos'     => $totalPedidos,
+            'pedidosHoje'      => $pedidosHoje,
+            'totalProdutos'    => $totalProdutos,
+            'totalCategorias'  => $totalCategorias,
+            'faturamentoHoje'  => number_format($faturamentoHoje, 2, ',', '.'),
+        ];
 
-        $_SESSION['erro'] = "Usuário ou senha incorretos!";
-        header("Location: /encomendas-do-chef---gestor/?controller=Auth&action=login");
-        exit;
-    }
-
-    public function sair()
-    {
-        session_start();
-        session_unset();
-        session_destroy();
-
-        header("Location: /encomendas-do-chef---gestor/?controller=Auth&action=login");
-        exit;
+        // === CARREGA A VIEW CORRETA DO DASHBOARD (NÃO O LAYOUT COMO VIEW!) ===
+        $this->view('dashboard/index', $dados);
     }
 }

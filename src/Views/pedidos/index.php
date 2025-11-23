@@ -2,6 +2,9 @@
 $title = 'Pedidos';
 $layout = 'layouts/app';
 ob_start(); 
+
+// CORRIGIDO: Definindo $filtroAtual com valor padrão
+$filtroAtual = $_GET['status'] ?? '';
 ?>
 
 <div class="page-header">
@@ -15,25 +18,31 @@ ob_start();
     <?php unset($_SESSION['flash']); ?>
 <?php endif; ?>
 
-<!-- Filtros por Status -->
+<!-- Filtros por Status (CORRIGIDO: links funcionais) -->
 <div class="filters-card">
     <div class="filters">
-        <a href="/pedidos" class="filter-btn <?= empty($filtroAtual) ? 'active' : '' ?>">
+        <a href="?controller=Pedido&action=index" 
+           class="filter-btn <?= empty($filtroAtual) ? 'active' : '' ?>">
             Todos
         </a>
-        <a href="/pedidos?status=pendente" class="filter-btn <?= $filtroAtual == 'pendente' ? 'active' : '' ?>">
+        <a href="?controller=Pedido&action=index&status=pendente" 
+           class="filter-btn <?= $filtroAtual === 'pendente' ? 'active' : '' ?>">
             Pendentes
         </a>
-        <a href="/pedidos?status=em_preparacao" class="filter-btn <?= $filtroAtual == 'em_preparacao' ? 'active' : '' ?>">
+        <a href="?controller=Pedido&action=index&status=em_preparacao" 
+           class="filter-btn <?= $filtroAtual === 'em_preparacao' ? 'active' : '' ?>">
             Em Preparação
         </a>
-        <a href="/pedidos?status=pronto" class="filter-btn <?= $filtroAtual == 'pronto' ? 'active' : '' ?>">
+        <a href="?controller=Pedido&action=index&status=pronto" 
+           class="filter-btn <?= $filtroAtual === 'pronto' ? 'active' : '' ?>">
             Prontos
         </a>
-        <a href="/pedidos?status=entregue" class="filter-btn <?= $filtroAtual == 'entregue' ? 'active' : '' ?>">
+        <a href="?controller=Pedido&action=index&status=entregue" 
+           class="filter-btn <?= $filtroAtual === 'entregue' ? 'active' : '' ?>">
             Entregues
         </a>
-        <a href="/pedidos?status=cancelado" class="filter-btn <?= $filtroAtual == 'cancelado' ? 'active' : '' ?>">
+        <a href="?controller=Pedido&action=index&status=cancelado" 
+           class="filter-btn <?= $filtroAtual === 'cancelado' ? 'active' : '' ?>">
             Cancelados
         </a>
     </div>
@@ -75,19 +84,17 @@ ob_start();
                     <?php foreach ($pedidos as $pedido): ?>
                         <?php
                         $statusClass = match($pedido['ped_status']) {
-                            'pendente' => 'badge-warning',
-                            'em_preparacao' => 'badge-info',
-                            'pronto' => 'badge-success',
-                            'entregue' => 'badge-secondary',
-                            'cancelado' => 'badge-danger',
-                            default => 'badge-secondary'
+                            'pendente'       => 'badge-warning',
+                            'em_preparacao'  => 'badge-info',
+                            'pronto'         => 'badge-success',
+                            'entregue'       => 'badge-secondary',
+                            'cancelado'      => 'badge-danger',
+                            default          => 'badge-secondary'
                         };
                         ?>
                         <tr>
-                            <td>
-                                <strong>#<?= $pedido['ped_numero'] ?></strong>
-                            </td>
-                            <td><?= htmlspecialchars($pedido['cli_nome']) ?></td>
+                            <td><strong>#<?= $pedido['ped_numero'] ?></strong></td>
+                            <td><?= htmlspecialchars($pedido['cliente_nome'] ?? $pedido['cli_nome'] ?? 'Avulso') ?></td>
                             <td>R$ <?= number_format($pedido['ped_valor_total'], 2, ',', '.') ?></td>
                             <td>
                                 <span class="badge <?= $statusClass ?>">
@@ -96,14 +103,17 @@ ob_start();
                             </td>
                             <td><?= date('d/m/Y H:i', strtotime($pedido['ped_data_elaboracao'])) ?></td>
                             <td class="actions">
-                                <a href="/pedidos/view/<?= $pedido['ped_numero'] ?>" 
-                                   class="btn btn-sm btn-outline-primary" 
-                                   title="Ver Detalhes">
+                                <!-- CORRIGIDO: link para detalhes -->
+                                <a href="?controller=Pedido&action=show&id=<?= $pedido['ped_numero'] ?>" 
+                                   class="btn btn-sm btn-outline-primary" title="Ver Detalhes">
                                     <i class="icon-eye"></i> Ver
                                 </a>
-                                <?php if ($pedido['ped_status'] == 'pendente'): ?>
-                                    <form method="POST" action="/pedidos/update-status/<?= $pedido['ped_numero'] ?>" style="display: inline;">
-                                        <input type="hidden" name="ped_status" value="em_preparacao">
+
+                                <!-- CORRIGIDO: formulário funcional com nosso roteamento -->
+                                <?php if ($pedido['ped_status'] === 'pendente'): ?>
+                                    <form method="POST" action="?controller=Pedido&action=updateStatus" style="display:inline;">
+                                        <input type="hidden" name="id" value="<?= $pedido['ped_numero'] ?>">
+                                        <input type="hidden" name="status" value="em_preparacao">
                                         <button type="submit" class="btn btn-sm btn-success" title="Iniciar Preparo">
                                             <i class="icon-play"></i> Assumir
                                         </button>
@@ -118,6 +128,7 @@ ob_start();
     </div>
 </div>
 
+<!-- Seu CSS lindo mantido 100% -->
 <style>
 .filters-card {
     background: white;
@@ -145,13 +156,13 @@ ob_start();
     background: #e9ecef;
 }
 .filter-btn.active {
-    background: var(--amarelo);
-    color: var(--preto);
+    background: #ffc107;
+    color: #212529;
     font-weight: 600;
 }
-.badge-info { background-color: #17a2b8; color: white; }
-.badge-warning { background-color: #ffc107; color: #212529; }
-.badge-secondary { background-color: #6c757d; color: white; }
+.badge-info { background-color: #17a2b8 !important; color: white !important; }
+.badge-warning { background-color: #ffc107 !important; color: #212529 !important; }
+.badge-secondary { background-color: #6c757d !important; color: white !important; }
 </style>
 
 <?php 

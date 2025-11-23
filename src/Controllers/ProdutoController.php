@@ -1,143 +1,183 @@
 <?php
 
-namespace Controllers;
+namespace App\Controllers;
 
-use Core\Controller;
-use Core\Database;
+use App\Core\Controller;
+use App\Core\Database;
 
-/**
- * Controller responsável por gerenciar produtos.
- * Possui funções para listar, criar, editar e excluir produtos.
- */
 class ProdutoController extends Controller
 {
     private $db;
 
     public function __construct()
     {
-        // Conexão com o banco
-        $this->db = new Database();
+        $this->auth();
+        $this->db = Database::getInstance(); // CORRIGIDO: getInstance()
     }
 
-    /**
-     * Lista todos os produtos
-     */
     public function index()
     {
-        $sql = "SELECT p.*, c.nome AS categoria 
-                FROM produtos p
-                LEFT JOIN categorias c ON c.id = p.categoria_id
-                ORDER BY p.nome ASC";
+        $stmt = $this->db->query("
+            SELECT p.*, c.cat_nome AS categoria_nome 
+            FROM produtos p
+            LEFT JOIN categorias c ON c.cat_codigo = p.cat_codigo
+            ORDER BY p.prod_nome ASC
+        ");
 
-        $produtos = $this->db->query($sql)->fetchAll();
+        $produtos = $stmt->fetchAll();
 
         $this->view('produtos/index', [
-            'produtos' => $produtos
+            'titulo'   => 'Produtos',
+            'produtos' => $produtos,
+            'page'     => 'produtos'
         ]);
     }
 
-    /**
-     * Formulário para cadastrar novo produto
-     */
     public function create()
     {
-        // Pegando categorias existentes
-        $categorias = $this->db->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+        $categorias = $this->db->query("SELECT cat_codigo, cat_nome FROM categorias ORDER BY cat_nome ASC")->fetchAll();
 
         $this->view('produtos/create', [
-            'categorias' => $categorias
+            'titulo'     => 'Novo Produto',
+            'categorias' => $categorias,
+            'page'       => 'produtos'
         ]);
     }
 
-    /**
-     * Salva um novo produto no banco
-     */
     public function store()
     {
-        $nome = trim($_POST['nome']);
-        $preco = trim($_POST['preco']);
-        $categoria_id = $_POST['categoria_id'];
+        $nome        = trim($_POST['nome'] ?? '');
+        $preco       = str_replace(['.', ','], ['', '.'], $_POST['preco'] ?? '0');
+        $categoria   = $_POST['categoria_id'] ?? null;
+        $descricao   = $_POST['descricao'] ?? '';
+        $foto        = $_FILES['foto'] ?? null;
 
-        // Validações básicas
-        if (empty($nome) || empty($preco) || empty($categoria_id)) {
-            $_SESSION['erro'] = "Todos os campos são obrigatórios!";
-            $this->redirect('/produtos/create');
+        if (empty($nome) || empty($preco) || empty($categoria)) {
+            $_SESSION['erro'] = "Preencha todos os campos obrigatórios!";
+            $this->redirect('?controller=Produto&action=create');
         }
 
-        $sql = "INSERT INTO produtos (nome, preco, categoria_id) 
-                VALUES (:nome, :preco, :categoria_id)";
+        // Upload da foto
+        $fotoNome = 'sem-foto.jpg';
+        if ($foto && $foto['error'] === UPLOAD_ERR_OK) {
+            $extensoes = ['jpg', 'jpeg', 'png', 'webp'];
+            $ext = strtolower(pathinfo($foto['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, $extensoes)) {
+                $fotoNome = uniqid('prod_') . '.' . $ext;
+                $destino = __DIR__ . '/../../public/assets/produtos/' . $fotoNome;
+                // Cria a pasta se não existir
+                if (!is_dir(dirname($destino))) {
+                    mkdir(dirname($destino), 0777, true);
+                }
+                move_uploaded_file($foto['tmp_name'], $destino);
+            }
+        }
 
-        $this->db->query($sql, [
+        $this->db->query("
+            INSERT INTO produtos (prod_nome, prod_descricao, prod_preco, prod_imagem, cat_codigo, prod_ativo)
+            VALUES (:nome, :desc, :preco, :foto, :cat, 1)
+        ", [
             ':nome' => $nome,
+            ':desc' => $descricao,
             ':preco' => $preco,
-            ':categoria_id' => $categoria_id
+            ':foto' => $fotoNome,
+            ':cat'  => $categoria
         ]);
 
         $_SESSION['sucesso'] = "Produto cadastrado com sucesso!";
-        $this->redirect('/produtos');
+        $this->redirect('?controller=Produto&action=index');
     }
 
-    /**
-     * Formulário de edição de um produto
-     */
-    public function edit($id)
+    public function edit($id = null)
     {
-        $produto = $this->db->query(
-            "SELECT * FROM produtos WHERE id = :id",
-            [':id' => $id]
-        )->fetch();
+        $id = $id ?? $_GET['id'] ?? null;
+        if (!$id) {
+            $this->redirect('?controller=Produto&action=index');
+        }
 
-        $categorias = $this->db->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+        $produto = $this->db->query("SELECT * FROM produtos WHERE prod_codigo = :id", [':id' => $id])->fetch();
+        $categorias = $this->db->query("SELECT cat_codigo, cat_nome FROM categorias ORDER BY cat_nome ASC")->fetchAll();
 
         if (!$produto) {
             $_SESSION['erro'] = "Produto não encontrado!";
-            $this->redirect('/produtos');
+            $this->redirect('?controller=Produto&action=index');
         }
 
         $this->view('produtos/edit', [
-            'produto' => $produto,
-            'categorias' => $categorias
+            'titulo'     => 'Editar Produto',
+            'produto'    => $produto,
+            'categorias' => $categorias,
+            'page'       => 'produtos'
         ]);
     }
 
-    /**
-     * Atualiza os dados do produto
-     */
-    public function update($id)
+    public function update($id = null)
     {
-        $nome = trim($_POST['nome']);
-        $preco = trim($_POST['preco']);
-        $categoria_id = $_POST['categoria_id'];
+        $id         = $id ?? $_POST['id'] ?? null;
+        $nome       = trim($_POST['nome'] ?? '');
+        $preco      = str_replace(['.', ','], ['', '.'], $_POST['preco'] ?? '0');
+        $categoria  = $_POST['categoria_id'] ?? null;
+        $descricao  = $_POST['descricao'] ?? '';
+        $fotoAtual  = $_POST['foto_atual'] ?? 'sem-foto.jpg';
+        $foto       = $_FILES['foto'] ?? null;
 
-        if (empty($nome) || empty($preco) || empty($categoria_id)) {
-            $_SESSION['erro'] = "Todos os campos são obrigatórios!";
-            $this->redirect("/produtos/edit/$id");
+        if (!$id || empty($nome) || empty($preco) || empty($categoria)) {
+            $_SESSION['erro'] = "Preencha todos os campos!";
+            $this->redirect("?controller=Produto&action=edit&id=$id");
         }
 
-        $sql = "UPDATE produtos 
-                SET nome = :nome, preco = :preco, categoria_id = :categoria_id 
-                WHERE id = :id";
+        $fotoNome = $fotoAtual;
 
-        $this->db->query($sql, [
+        if ($foto && $foto['error'] === UPLOAD_ERR_OK) {
+            $extensoes = ['jpg', 'jpeg', 'png', 'webp'];
+            $ext = strtolower(pathinfo($foto['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, $extensoes)) {
+                // Apaga foto antiga
+                if ($fotoAtual !== 'sem-foto.jpg') {
+                    $antiga = __DIR__ . '/../../public/assets/produtos/' . $fotoAtual;
+                    if (file_exists($antiga)) unlink($antiga);
+                }
+                $fotoNome = uniqid('prod_') . '.' . $ext;
+                move_uploaded_file($foto['tmp_name'], __DIR__ . '/../../public/assets/produtos/' . $fotoNome);
+            }
+        }
+
+        $this->db->query("
+            UPDATE produtos SET 
+                prod_nome = :nome,
+                prod_descricao = :desc,
+                prod_preco = :preco,
+                prod_imagem = :foto,
+                cat_codigo = :cat
+            WHERE prod_codigo = :id
+        ", [
             ':nome' => $nome,
+            ':desc' => $descricao,
             ':preco' => $preco,
-            ':categoria_id' => $categoria_id,
-            ':id' => $id
+            ':foto' => $fotoNome,
+            ':cat'  => $categoria,
+            ':id'   => $id
         ]);
 
         $_SESSION['sucesso'] = "Produto atualizado com sucesso!";
-        $this->redirect('/produtos');
+        $this->redirect('?controller=Produto&action=index');
     }
 
-    /**
-     * Exclui um produto
-     */
-    public function delete($id)
+    public function delete($id = null)
     {
-        $sql = "DELETE FROM produtos WHERE id = :id";
-        $this->db->query($sql, [':id' => $id]);
+        $id = $id ?? $_GET['id'] ?? null;
+        if (!$id) {
+            $this->redirect('?controller=Produto&action=index');
+        }
 
-        $_SESSION['sucesso'] = "Produto removido!";
-        $this->redirect('/produtos');
+        $foto = $this->db->query("SELECT prod_imagem FROM produtos WHERE prod_codigo = :id", [':id' => $id])->fetchColumn();
+        if ($foto && $foto !== 'sem-foto.jpg') {
+            $caminho = __DIR__ . '/../../public/assets/produtos/' . $foto;
+            if (file_exists($caminho)) unlink($caminho);
+        }
+
+        $this->db->query("DELETE FROM produtos WHERE prod_codigo = :id", [':id' => $id]);
+        $_SESSION['sucesso'] = "Produto excluído com sucesso!";
+        $this->redirect('?controller=Produto&action=index');
     }
 }

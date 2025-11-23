@@ -1,9 +1,10 @@
 <?php
 
-namespace Controllers;
+namespace App\Controllers;
 
-use Controllers\Controller;
-use Core\Database;
+use App\Core\Controller;
+use App\Core\Database;
+use PDO;
 
 class RelatorioController extends Controller
 {
@@ -11,96 +12,101 @@ class RelatorioController extends Controller
 
     public function __construct()
     {
-        // Singleton Database
-        $this->db = Database::getInstance();
+        $this->auth(); // Protege o relatório
+        $this->db = Database::getInstance(); // ← CORRETO (Singleton)
     }
 
-    // Método para exibir relatório de vendas
+    /**
+     * Relatório de Vendas com filtro por período
+     */
     public function vendas()
     {
-        $conn = $this->db->getConnection();
+        // Filtros de data (padrão: primeiro dia do mês até hoje)
+        $de  = $_GET['de'] ?? date('Y-m-01');
+        $ate = $_GET['ate'] ?? date('Y-m-d');
 
-        // Pega filtros da URL
-        $de  = $_GET['de'] ?? date('Y-m-01'); // início do mês
-        $ate = $_GET['ate'] ?? date('Y-m-d'); // hoje
+        // === 1. Total de pedidos e faturamento no período ===
+        $stmt = $this->db->query("
+            SELECT 
+                COUNT(*) as total_pedidos,
+                COALESCE(SUM(ped_valor_total), 0) as faturamento
+            FROM pedidos 
+            WHERE DATE(ped_data_elaboracao) BETWEEN :de AND :ate
+        ", [':de' => $de, ':ate' => $ate]);
 
-        // Consulta de pedidos no período
-        $stmt = $conn->prepare("
-            SELECT p.ped_numero, p.ped_data_elaboracao, c.cli_nome, p.ped_valor_total, p.ped_status
+        $estatisticas = $stmt->fetch(PDO::FETCH_ASSOC); // ← CORRIGIDO AQUI!
+        $totalPedidos = $estatisticas['total_pedidos'] ?? 0;
+        $faturamento  = $estatisticas['faturamento'] ?? 0;
+        $ticketMedio  = $totalPedidos > 0 ? $faturamento / $totalPedidos : 0;
+
+        // === 2. Pedidos detalhados no período ===
+        $pedidos = $this->db->query("
+            SELECT 
+                p.ped_numero as id, 
+                p.ped_data_elaboracao as data_pedido, 
+                p.ped_valor_total as total, 
+                p.ped_status as status,
+                COALESCE(c.cli_nome, 'Cliente Avulso') as cliente
             FROM pedidos p
-            INNER JOIN clientes c ON p.cli_codigo = c.cli_codigo
-            WHERE DATE(p.ped_data_elaboracao) BETWEEN ? AND ?
+            LEFT JOIN clientes c ON c.cli_codigo = p.cli_codigo
+            WHERE DATE(p.ped_data_elaboracao) BETWEEN :de AND :ate
             ORDER BY p.ped_data_elaboracao DESC
-        ");
-        $stmt->bind_param("ss", $de, $ate);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        ", [':de' => $de, ':ate' => $ate])->fetchAll(PDO::FETCH_ASSOC);
 
-        $pedidos = [];
-        while ($row = $result->fetch_assoc()) {
-            $pedidos[] = $row;
-        }
-
-        // Estatísticas gerais
-        $estatisticas = [
-            'total_pedidos' => count($pedidos),
-            'faturamento_total' => array_sum(array_column($pedidos, 'ped_valor_total')),
-            'ticket_medio' => count($pedidos) > 0 ? array_sum(array_column($pedidos, 'ped_valor_total')) / count($pedidos) : 0
-        ];
-
-        // Produtos mais vendidos
-        $stmtProd = $conn->prepare("
-            SELECT pr.prod_nome, SUM(ip.itp_quantidade_comprada) AS quantidade_vendida,
-                   SUM(ip.itp_quantidade_comprada * ip.itp_preco_unitario) AS valor_total
+        // === 3. Produtos mais vendidos ===
+        $topProdutos = $this->db->query("
+            SELECT 
+                pr.prod_nome as produto,
+                SUM(ip.itp_quantidade_comprada) as quantidade,
+                SUM(ip.itp_quantidade_comprada * ip.itp_preco_unitario) as valor_total
             FROM itens_pedido ip
-            INNER JOIN produtos pr ON ip.prod_codigo = pr.prod_codigo
-            INNER JOIN pedidos p ON ip.ped_numero = p.ped_numero
-            WHERE DATE(p.ped_data_elaboracao) BETWEEN ? AND ?
+            JOIN produtos pr ON pr.prod_codigo = ip.prod_codigo
+            JOIN pedidos p ON p.ped_numero = ip.ped_numero
+            WHERE DATE(p.ped_data_elaboracao) BETWEEN :de AND :ate
             GROUP BY pr.prod_codigo
-            ORDER BY quantidade_vendida DESC
+            ORDER BY quantidade DESC
             LIMIT 10
-        ");
-        $stmtProd->bind_param("ss", $de, $ate);
-        $stmtProd->execute();
-        $topProdutos = $stmtProd->get_result()->fetch_all(MYSQLI_ASSOC);
+        ", [':de' => $de, ':ate' => $ate])->fetchAll(PDO::FETCH_ASSOC);
 
-        // Pedidos por status
-        $stmtStatus = $conn->prepare("
-            SELECT ped_status, COUNT(*) AS quantidade, SUM(ped_valor_total) AS valor_total
-            FROM pedidos
-            WHERE DATE(ped_data_elaboracao) BETWEEN ? AND ?
-            GROUP BY ped_status
-        ");
-        $stmtStatus->bind_param("ss", $de, $ate);
-        $stmtStatus->execute();
-        $pedidosPorStatus = $stmtStatus->get_result()->fetch_all(MYSQLI_ASSOC);
-
-        // Vendas por categoria
-        $stmtCat = $conn->prepare("
-            SELECT c.cat_nome,
-                   COUNT(ip.prod_codigo) AS pedidos_com_categoria,
-                   SUM(ip.itp_quantidade_comprada) AS quantidade_vendida,
-                   SUM(ip.itp_quantidade_comprada * ip.itp_preco_unitario) AS valor_total
+        // === 4. Vendas por categoria ===
+        $porCategoria = $this->db->query("
+            SELECT 
+                c.cat_nome as categoria,
+                COUNT(DISTINCT p.ped_numero) as pedidos,
+                SUM(ip.itp_quantidade_comprada) as itens_vendidos,
+                SUM(ip.itp_quantidade_comprada * ip.itp_preco_unitario) as valor_total
             FROM itens_pedido ip
-            INNER JOIN produtos p ON ip.prod_codigo = p.prod_codigo
-            INNER JOIN categorias c ON p.cat_codigo = c.cat_codigo
-            INNER JOIN pedidos ped ON ip.ped_numero = ped.ped_numero
-            WHERE DATE(ped.ped_data_elaboracao) BETWEEN ? AND ?
+            JOIN produtos pr ON pr.prod_codigo = ip.prod_codigo
+            JOIN categorias c ON c.cat_codigo = pr.cat_codigo
+            JOIN pedidos p ON p.ped_numero = ip.ped_numero
+            WHERE DATE(p.ped_data_elaboracao) BETWEEN :de AND :ate
             GROUP BY c.cat_codigo
             ORDER BY valor_total DESC
-        ");
-        $stmtCat->bind_param("ss", $de, $ate);
-        $stmtCat->execute();
-        $categorias = $stmtCat->get_result()->fetch_all(MYSQLI_ASSOC);
+        ", [':de' => $de, ':ate' => $ate])->fetchAll(PDO::FETCH_ASSOC);
 
-        // Chama a view já existente
-        $this->view('relatorios/vendas', [
-            'de' => $de,
-            'ate' => $ate,
-            'estatisticas' => $estatisticas,
-            'topProdutos' => $topProdutos,
-            'pedidosPorStatus' => $pedidosPorStatus,
-            'categorias' => $categorias
-        ]);
+        // === 5. Pedidos por status ===
+        $porStatus = $this->db->query("
+            SELECT ped_status as status, COUNT(*) as quantidade, SUM(ped_valor_total) as valor
+            FROM pedidos
+            WHERE DATE(ped_data_elaboracao) BETWEEN :de AND :ate
+            GROUP BY ped_status
+        ", [':de' => $de, ':ate' => $ate])->fetchAll(PDO::FETCH_ASSOC);
+
+        // Dados finais para a view
+        $dados = [
+            'titulo'         => 'Relatório de Vendas',
+            'page'           => 'relatorios',
+            'de'             => $de,
+            'ate'            => $ate,
+            'totalPedidos'   => $totalPedidos,
+            'faturamento'    => number_format($faturamento, 2, ',', '.'),
+            'ticketMedio'    => number_format($ticketMedio, 2, ',', '.'),
+            'pedidos'        => $pedidos,
+            'topProdutos'    => $topProdutos,
+            'porCategoria'   => $porCategoria,
+            'porStatus'      => $porStatus,
+        ];
+
+        $this->view('relatorios/vendas', $dados);
     }
 }

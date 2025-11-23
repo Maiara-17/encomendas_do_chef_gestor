@@ -1,37 +1,42 @@
 <?php
 
-namespace Core;
+namespace App\Core;
+
+use PDO;
+use PDOException;
 
 class Database
 {
-    private static $instance = null;
-    private $connection;
+    private static ?Database $instance = null;
+    private PDO $pdo;
 
-    // Construtor privado para singleton
     private function __construct()
     {
-        $this->connection = new \mysqli('localhost', 'root', '', 'encomendas_chef_db');
+        $host = 'localhost';
+        $dbname = 'encomendas_chef_db';
+        $user = 'root';
+        $pass = '';
 
-        if ($this->connection->connect_error) {
-            die('Erro de conexão: ' . $this->connection->connect_error);
+        try {
+            $this->pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass);
+            $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        } catch (PDOException $e) {
+            die("Erro no banco: " . $e->getMessage());
         }
-
-        // Definir charset UTF-8
-        $this->connection->set_charset('utf8mb4');
     }
 
-    // Retorna a instância única do Database
-    public static function getInstance()
+    public static function getInstance(): self
     {
         if (self::$instance === null) {
-            self::$instance = new Database();
+            self::$instance = new self();
         }
         return self::$instance;
     }
 
-    // Retorna a conexão mysqli
-    public function getConnection()
+    public function query(string $sql, array $params = [])
     {
-        return $this->connection;
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt;
     }
 }

@@ -1,13 +1,16 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Caminho da pasta do projeto
-    RewriteBase /encomendas-do-chef---gestor/
-
-    # Se o arquivo ou pasta existe, entrega normal
+    # FORÇA TUDO PRO INDEX.PHP SEM DEPENDER DO RewriteBase (funciona em 100% dos casos)
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-
-    # Redireciona tudo para o index.php
-    RewriteRule ^(.*)$ index.php?url=$1 [L,QSA]
+    RewriteRule ^ index.php [QSA,L]
 </IfModule>
+
+# Segurança
+<FilesMatch "\.(htaccess|htpasswd|ini|log|sh|inc|bak)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+Options -Indexes

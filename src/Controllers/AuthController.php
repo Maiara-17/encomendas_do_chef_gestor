@@ -2,56 +2,42 @@
 
 namespace App\Controllers;
 
-class AuthController
-{
-    /**
-     * Exibe a tela de login
-     */
-    public function showLogin()
-    {
-        require_once __DIR__ . '/../Views/auth/login.php';
-    }
+use App\Core\Controller;
 
-    /**
-     * Processa o envio do formulário de login
-     */
+class AuthController extends Controller
+{
     public function login()
     {
-        session_start();
+        if (!empty($_SESSION['usuario'] ?? '')) {
+            header("Location: index.php?controller=Dashboard&action=index");
+            exit;
+        }
+        $this->view('auth/login');
+    }
 
-        $email = $_POST['email'] ?? '';
+    public function entrar()
+    {
+        $email = trim($_POST['email'] ?? '');
         $senha = $_POST['senha'] ?? '';
 
-        if ($email === '' || $senha === '') {
-            $_SESSION['erro'] = "Preencha todos os campos!";
-            header("Location: /encomendas-do-chef---gestor/login");
-            exit;
-        }
-
-        // === LOGIN FIXO (temporário) ===
-        if ($email === "admin@admin.com" && $senha === "123") {
-
+        if ($email === 'admin@admin.com' && $senha === '123') {
             $_SESSION['usuario'] = $email;
+            $_SESSION['sucesso'] = 'Bem-vindo de volta!';
 
-            header("Location: /encomendas-do-chef---gestor/dashboard");
+            header("Location: index.php?controller=Dashboard&action=index");
             exit;
         }
 
-        $_SESSION['erro'] = "Usuário ou senha incorretos!";
-        header("Location: /encomendas-do-chef---gestor/login");
+        $_SESSION['erro'] = 'Usuário ou senha incorretos';
+        header("Location: index.php?controller=Auth&action=login");
         exit;
     }
 
-    /**
-     * Desloga o usuário
-     */
-    public function logout()
+    public function sair()
     {
-        session_start();
         session_unset();
         session_destroy();
-
-        header("Location: /encomendas-do-chef---gestor/login");
+        header("Location: index.php?controller=Auth&action=login");
         exit;
     }
 }

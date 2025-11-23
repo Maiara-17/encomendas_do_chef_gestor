@@ -1,35 +1,24 @@
 <?php
+// src/Core/Autoloader.php 
+ 
+spl_autoload_register(function ($class) {
+    // Exemplo: App\Controllers\ProdutoController
+    $prefix = 'App\\';
+    $base_dir = __DIR__ . '/../'; // aponta para a pasta src/
 
-namespace Core;
-
-/**
- * Autoloader - Carrega automaticamente as classes do projeto
- */
-class Autoloader
-{
-    /**
-     * Registra o autoloader
-     */
-    public static function register()
-    {
-        spl_autoload_register([__CLASS__, 'load']);
+    // Se não começar com App\, ignora (deixa outros autoloaders cuidarem)
+    if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+        return;
     }
 
-    /**
-     * Carrega uma classe automaticamente
-     *
-     * @param string $className Nome completo da classe com namespace
-     */
-    private static function load($className)
-    {
-        // Converte namespace para caminho
-        $className = str_replace('\\', '/', $className);
+    // Remove "App\" do início → fica Controllers\ProdutoController
+    $relative_class = substr($class, strlen($prefix));
 
-        // Caminho correto: src/
-        $file = __DIR__ . '/../' . $className . '.php';
+    // Converte \ em / e adiciona .php
+    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
 
-        if (file_exists($file)) {
-            require_once $file;
-        }
+    // Se o arquivo existir, inclui
+    if (file_exists($file)) {
+        require $file;
     }
-}
+});

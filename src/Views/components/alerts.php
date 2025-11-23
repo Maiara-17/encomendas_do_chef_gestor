@@ -1,20 +1,13 @@
-<?php
-/**
- * Componente: Alerts - Mensagens de sucesso/erro
- */
-
-// Mensagens de sucesso
-if (isset($_SESSION['flash']['success'])): ?>
-    <div class="alert alert-success">
-        <?= htmlspecialchars($_SESSION['flash']['success']) ?>
-        <?php unset($_SESSION['flash']['success']); ?>
+<?php if (isset($_SESSION['sucesso'])): ?>
+    <div class="alert alert-success alert-dismissible fade show">
+        <?= $_SESSION['sucesso'] ?> <button type="button" class="close" data-dismiss="alert">×</button>
     </div>
-<?php endif;
+    <?php unset($_SESSION['sucesso']); ?>
+<?php endif; ?>
 
-// Mensagens de erro
-if (isset($_SESSION['flash']['error'])): ?>
-    <div class="alert alert-error">
-        <?= htmlspecialchars($_SESSION['flash']['error']) ?>
-        <?php unset($_SESSION['flash']['error']); ?>
+<?php if (isset($_SESSION['erro'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show">
+        <?= $_SESSION['erro'] ?> <button type="button" class="close" data-dismiss="alert">×</button>
     </div>
-<?php endif;
+    <?php unset($_SESSION['erro']); ?>
+<?php endif; ?>

@@ -2,14 +2,63 @@
 $title = 'Relatório de Vendas';
 $layout = 'layouts/app';
 ob_start(); 
+
+// === PROTEÇÃO TOTAL CONTRA UNDEFINED VARIABLES ===
+$de           = $dados['de'] ?? date('Y-m-01');
+$ate          = $dados['ate'] ?? date('Y-m-d');
+$totalPedidos = $dados['totalPedidos'] ?? 0;
+$faturamento  = $dados['faturamento'] ?? '0,00';
+$ticketMedio  = $dados['ticketMedio'] ?? '0,00';
+$pedidos      = $dados['pedidos'] ?? [];
+$topProdutos  = $dados['topProdutos'] ?? [];
+$porStatus    = $dados['porStatus'] ?? [];
+$porCategoria = $dados['porCategoria'] ?? [];
+
+// Transforma os dados para o formato que sua view espera
+$estatisticas = [
+    'total_pedidos'     => $totalPedidos,
+    'faturamento_total' => floatval(str_replace(['.', ','], ['', '.'], $faturamento)),
+    'ticket_medio'      => floatval(str_replace(['.', ','], ['', '.'], $ticketMedio))
+];
+
+// Renomeia os campos do topProdutos para o que sua view espera
+$topProdutosFormatado = [];
+foreach ($topProdutos as $item) {
+    $topProdutosFormatado[] = [
+        'prod_nome'          => $item['produto'] ?? 'Produto sem nome',
+        'quantidade_vendida' => $item['quantidade'] ?? 0,
+        'valor_total'        => $item['valor_total'] ?? 0
+    ];
+}
+
+// Renomeia os campos de status
+$pedidosPorStatus = [];
+foreach ($porStatus as $item) {
+    $pedidosPorStatus[] = [
+        'ped_status'   => $item['status'] ?? 'desconhecido',
+        'quantidade'   => $item['quantidade'] ?? 0,
+        'valor_total'  => $item['valor'] ?? 0
+    ];
+}
+
+// Renomeia categorias
+$categorias = [];
+foreach ($porCategoria as $item) {
+    $categorias[] = [
+        'cat_nome'               => $item['categoria'] ?? 'Sem categoria',
+        'pedidos_com_categoria'  => $item['pedidos'] ?? 0,
+        'quantidade_vendida'     => $item['itens_vendidos'] ?? 0,
+        'valor_total'            => $item['valor_total'] ?? 0
+    ];
+}
 ?>
 
 <div class="page-header">
     <h1>Relatório de Vendas</h1>
     <div class="header-actions">
-        <a href="/relatorios/exportar-csv/vendas?de=<?= $de ?>&ate=<?= $ate ?>" 
+        <a href="?controller=Relatorio&action=vendas&de=<?= urlencode($de) ?>&ate=<?= urlencode($ate) ?>&export=csv" 
            class="btn btn-secondary">
-            <i class="icon-download"></i> Exportar CSV
+            Download Exportar CSV
         </a>
     </div>
 </div>
@@ -17,30 +66,22 @@ ob_start();
 <!-- Filtro de Período -->
 <div class="card filter-card">
     <div class="card-body">
-        <form method="GET" action="/relatorios/vendas" class="filter-form">
+        <form method="GET" action="" class="filter-form">
+            <input type="hidden" name="controller" value="Relatorio">
+            <input type="hidden" name="action" value="vendas">
             <div class="form-row">
                 <div class="form-group">
                     <label for="de">Data Inicial:</label>
-                    <input type="date" 
-                           id="de" 
-                           name="de" 
-                           class="form-control" 
-                           value="<?= $de ?>" 
-                           required>
+                    <input type="date" id="de" name="de" class="form-control" value="<?= htmlspecialchars($de) ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="ate">Data Final:</label>
-                    <input type="date" 
-                           id="ate" 
-                           name="ate" 
-                           class="form-control" 
-                           value="<?= $ate ?>" 
-                           required>
+                    <input type="date" id="ate" name="ate" class="form-control" value="<?= htmlspecialchars($ate) ?>" required>
                 </div>
                 <div class="form-group">
                     <label>&nbsp;</label>
                     <button type="submit" class="btn btn-primary">
-                        <i class="icon-search"></i> Gerar Relatório
+                        Search Gerar Relatório
                     </button>
                 </div>
             </div>
@@ -79,7 +120,7 @@ ob_start();
         <h3>Top 10 - Produtos Mais Vendidos</h3>
     </div>
     <div class="card-body">
-        <?php if (empty($topProdutos)): ?>
+        <?php if (empty($topProdutosFormatado)): ?>
             <div class="empty-state">
                 <p>Nenhuma venda registrada no período selecionado.</p>
             </div>
@@ -94,11 +135,9 @@ ob_start();
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($topProdutos as $index => $produto): ?>
+                    <?php foreach ($topProdutosFormatado as $index => $produto): ?>
                         <tr>
-                            <td>
-                                <span class="ranking-badge"><?= $index + 1 ?>º</span>
-                            </td>
+                            <td><span class="ranking-badge"><?= $index + 1 ?>º</span></td>
                             <td><?= htmlspecialchars($produto['prod_nome']) ?></td>
                             <td><?= number_format($produto['quantidade_vendida']) ?> unidades</td>
                             <td class="text-success">
@@ -195,73 +234,20 @@ ob_start();
 <?php endif; ?>
 
 <style>
-.filter-card {
-    margin-bottom: 20px;
-}
-.filter-form .form-row {
-    display: flex;
-    gap: 15px;
-    align-items: end;
-    flex-wrap: wrap;
-}
-.filter-form .form-group {
-    flex: 1;
-    min-width: 150px;
-}
-.stats-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-}
-.stat-card {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-.stat-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    color: white;
-}
+.filter-card { margin-bottom: 20px; }
+.filter-form .form-row { display: flex; gap: 15px; align-items: end; flex-wrap: wrap; }
+.filter-form .form-group { flex: 1; min-width: 150px; }
+.stats-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.stat-card { background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; display: flex; align-items: center; gap: 15px; }
+.stat-icon { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; }
 .stat-icon.pedidos { background: #17a2b8; }
 .stat-icon.faturamento { background: #28a745; }
 .stat-icon.ticket { background: #ffc107; color: #212529; }
-.stat-content h3 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 700;
-    color: #212529;
-}
-.stat-content p {
-    margin: 5px 0 0;
-    color: #6c757d;
-    font-size: 14px;
-}
-.ranking-badge {
-    background: var(--amarelo);
-    color: var(--preto);
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 12px;
-}
-.text-success {
-    color: #28a745;
-}
-.header-actions {
-    display: flex;
-    gap: 10px;
-}
+.stat-content h3 { margin: 0; font-size: 24px; font-weight: 700; color: #212529; }
+.stat-content p { margin: 5px 0 0; color: #6c757d; font-size: 14px; }
+.ranking-badge { background: var(--amarelo); color: var(--preto); padding: 4px 8px; border-radius: 12px; font-weight: 600; font-size: 12px; }
+.text-success { color: #28a745; }
+.header-actions { display: flex; gap: 10px; }
 </style>
 
 <?php 

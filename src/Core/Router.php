@@ -1,53 +1,34 @@
 <?php
-namespace Core;
+
+namespace App\Core;
 
 class Router
 {
-    private array $routes = [];
-
-    public function get(string $route, string $action)
+    public function dispatch()
     {
-        $this->routes['GET'][$route] = $action;
-    }
-
-    public function post(string $route, string $action)
-    {
-        $this->routes['POST'][$route] = $action;
-    }
-
-    public function dispatch(string $url)
-    {
-        // Corrigido para não duplicar barras
-        $url = '/' . ltrim($url, '/');
-        $method = $_SERVER['REQUEST_METHOD'];
-
-        if (!isset($this->routes[$method])) {
-            http_response_code(404);
-            echo "404 - Página não encontrada";
-            return;
+        // FORÇA DASHBOARD QUANDO ABRE A RAIZ DO PROJETO
+        if (empty($_GET['controller']) && (empty($_SERVER['REQUEST_URI']) || $_SERVER['REQUEST_URI'] === '/' || strpos($_SERVER['REQUEST_URI'], 'index.php') !== false)) {
+            $_GET['controller'] = 'Dashboard';
+            $_GET['action'] = 'index';
         }
 
-        foreach ($this->routes[$method] as $route => $action) {
-            $pattern = preg_replace('/{[^\/]+}/', '([^/]+)', $route);
-            $pattern = '#^' . $pattern . '$#';
+        // Usa os parâmetros GET (funciona com os links do menu que já têm index.php)
+        $controller = $_GET['controller'] ?? 'Dashboard';
+        $action = $_GET['action'] ?? 'index';
 
-            if (preg_match($pattern, $url, $matches)) {
-                array_shift($matches);
+        $controllerClass = 'App\\Controllers\\' . $controller . 'Controller';
 
-                [$controller, $methodName] = explode('@', $action);
-                $controllerClass = "\\App\\Controllers\\$controller";
-
-                if (!class_exists($controllerClass)) {
-                    echo "Controller não encontrado: $controllerClass";
-                    return;
-                }
-
-                $instance = new $controllerClass();
-                return call_user_func_array([$instance, $methodName], $matches);
-            }
+        if (!class_exists($controllerClass)) {
+            die("Controller não encontrado: $controller");
         }
 
-        http_response_code(404);
-        echo "404 - Página não encontrada";
+        $instance = new $controllerClass();
+
+        if (!method_exists($instance, $action)) {
+            die("Ação não encontrada: $action");
+        }
+
+        // Executa a ação
+        $instance->$action();
     }
 }

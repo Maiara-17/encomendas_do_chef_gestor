@@ -1,6 +1,9 @@
 <?php
 $config = require __DIR__ . '/../../../config/app.php';
 $title = 'Login';
+
+// Força a base_url correta automaticamente
+$baseUrl = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
 ?>
 
 <!DOCTYPE html>
@@ -29,7 +32,7 @@ $title = 'Login';
             font-size: 1.2em;
             font-weight: bold;
             width: 100%;
-            height: 7% ;
+            height: 7%;
             position: fixed; 
             top: 0;
             z-index: 1000; 
@@ -47,7 +50,6 @@ $title = 'Login';
             box-sizing: border-box;
         }
 
-       
         .footer {
             background-color: #f4c430;
             color: #fff;
@@ -60,7 +62,6 @@ $title = 'Login';
             z-index: 1000; 
         }
 
-       
         .alert {
             padding: 10px;
             margin-bottom: 15px;
@@ -80,11 +81,10 @@ $title = 'Login';
             border: 1px solid #2e7d32;
         }
 
-        
         form {
             display: flex;
             flex-direction: column;
-            max-width:700px; 
+            max-width: 700px; 
             margin: 0 auto; 
             border-radius: 10px;
         }
@@ -103,10 +103,9 @@ $title = 'Login';
             margin-bottom: 15px;
             border: none;
             background-color: #e0e0e0;
-            border-radius: 3px;
+            border-radius: 10px;
             font-size: 1em;
             box-sizing: border-box;
-            border-radius: 10px;
         }
 
         .btn-primary {
@@ -124,38 +123,41 @@ $title = 'Login';
         }
 
         .btn-primary:hover {
-            background-color: #F4C430;
-        
+            background-color: #e0b12b;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <a href="<?= $config['base_url'] ?>/">
-            <img src="public/assets/chef.png" alt="Logo Encomendas do Chef" style="max-width: 60px; height:60px auto; vertical-align: middle;">
+        <a href="<?= $baseUrl ?>/index.php">
+            <img src="public/assets/chef.png" alt="Logo Encomendas do Chef" style="max-width: 60px; height: auto; vertical-align: middle;">
         </a>
-
         Encomendas do Chef - Gestor
     </div>
 
     <div class="login-card">
-        <?php if (isset($error)): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-        
-        <?php if (isset($_SESSION['flash']['success'])): ?>
+        <!-- MENSAGENS CORRETAS (usando $_SESSION['sucesso'] e $_SESSION['erro']) -->
+        <?php if (isset($_SESSION['sucesso'])): ?>
             <div class="alert alert-success">
-                <?= htmlspecialchars($_SESSION['flash']['success']) ?>
-                <?php unset($_SESSION['flash']['success']); ?>
+                <?= htmlspecialchars($_SESSION['sucesso']) ?>
+                <?php unset($_SESSION['sucesso']); ?>
             </div>
         <?php endif; ?>
-        
-        <form method="POST" action="<?= $config['base_url'] ?>/login">
+
+        <?php if (isset($_SESSION['erro'])): ?>
+            <div class="alert alert-error">
+                <?= htmlspecialchars($_SESSION['erro']) ?>
+                <?php unset($_SESSION['erro']); ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- FORMULÁRIO COM ACTION 100% CORRETO -->
+        <form method="POST" action="<?= $baseUrl ?>/index.php?controller=Auth&action=entrar">
             <label>Email</label>
-            <input type="email" name="email" value="<?= htmlspecialchars($oldEmail ?? '') ?>" required>
+            <input type="email" name="email" value="<?= htmlspecialchars($oldEmail ?? '') ?>" placeholder="admin@admin.com" required>
             
             <label>Senha</label>
-            <input type="password" name="senha" required>
+            <input type="password" name="senha" placeholder="123" required>
             
             <button type="submit" class="btn-primary">Entrar</button>
         </form>

@@ -2,113 +2,101 @@
 
 namespace App\Controllers;
 
-use Core\Controller;
-use Core\Database;
+use App\Core\Controller;
+use App\Core\Database;
+use PDO; // ← ESSA LINHA É OBRIGATÓRIA!
 
-/**
- * Controller responsável por gerenciar as categorias.
- */
 class CategoriaController extends Controller
 {
     private $db;
 
     public function __construct()
     {
-        // Inicia a conexão com o banco
-        $this->db = new Database();
-        session_start();
+        $this->auth();
+        $this->db = Database::getInstance();
     }
 
-    /**
-     * Lista todas as categorias
-     */
     public function index()
     {
-        $categorias = $this->db->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+        $stmt = $this->db->query("SELECT * FROM categorias ORDER BY cat_nome ASC");
+        $categorias = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $this->view('categorias/index', [
-            'categorias' => $categorias
+            'titulo'     => 'Categorias',
+            'categorias' => $categorias,
+            'page'       => 'categorias'
         ]);
     }
 
-    /**
-     * Exibe o formulário de criação
-     */
     public function create()
     {
-        $this->view('categorias/create');
+        $this->view('categorias/create', [
+            'titulo' => 'Nova Categoria',
+            'page'   => 'categorias'
+        ]);
     }
 
-    /**
-     * Salva uma nova categoria
-     */
     public function store()
     {
         $nome = trim($_POST['nome'] ?? '');
 
         if (empty($nome)) {
             $_SESSION['erro'] = "O nome da categoria é obrigatório!";
-            $this->redirect('/categorias/add');
+            $this->redirect('?controller=Categoria&action=create');
         }
 
-        $sql = "INSERT INTO categorias (nome) VALUES (:nome)";
-        $this->db->query($sql, [':nome' => $nome]);
+        $this->db->query("INSERT INTO categorias (cat_nome) VALUES (:nome)", [':nome' => $nome]);
 
         $_SESSION['sucesso'] = "Categoria cadastrada com sucesso!";
-        $this->redirect('/categorias');
+        $this->redirect('?controller=Categoria&action=index');
     }
 
-    /**
-     * Exibe formulário de edição
-     */
-    public function edit($id)
+    public function edit($id = null)
     {
-        $categoria = $this->db->query(
-            "SELECT * FROM categorias WHERE id = :id",
-            [':id' => $id]
-        )->fetch();
+        $id = $id ?? $_GET['id'] ?? null;
+        $stmt = $this->db->query("SELECT * FROM categorias WHERE cat_codigo = :id", [':id' => $id]);
+        $categoria = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$categoria) {
             $_SESSION['erro'] = "Categoria não encontrada!";
-            $this->redirect('/categorias');
+            $this->redirect('?controller=Categoria&action=index');
         }
 
         $this->view('categorias/edit', [
-            'categoria' => $categoria
+            'titulo'    => 'Editar Categoria',
+            'categoria' => $categoria,
+            'page'      => 'categorias'
         ]);
     }
 
-    /**
-     * Atualiza categoria existente
-     */
-    public function update($id)
+    public function update($id = null)
     {
+        $id   = $id ?? $_POST['id'] ?? null;
         $nome = trim($_POST['nome'] ?? '');
 
-        if (empty($nome)) {
-            $_SESSION['erro'] = "O nome da categoria é obrigatório!";
-            $this->redirect("/categorias/edit/$id");
+        if (empty($nome) || empty($id)) {
+            $_SESSION['erro'] = "Dados inválidos!";
+            $this->redirect('?controller=Categoria&action=index');
         }
 
-        $sql = "UPDATE categorias SET nome = :nome WHERE id = :id";
-        $this->db->query($sql, [
+        $this->db->query("UPDATE categorias SET cat_nome = :nome WHERE cat_codigo = :id", [
             ':nome' => $nome,
-            ':id' => $id
+            ':id'   => $id
         ]);
 
         $_SESSION['sucesso'] = "Categoria atualizada com sucesso!";
-        $this->redirect('/categorias');
+        $this->redirect('?controller=Categoria&action=index');
     }
 
-    /**
-     * Remove uma categoria
-     */
-    public function delete($id)
+    public function delete($id = null)
     {
-        $sql = "DELETE FROM categorias WHERE id = :id";
-        $this->db->query($sql, [':id' => $id]);
+        $id = $id ?? $_GET['id'] ?? null;
 
-        $_SESSION['sucesso'] = "Categoria removida com sucesso!";
-        $this->redirect('/categorias');
+        if ($id) {
+            $this->db->query("DELETE FROM categorias WHERE cat_codigo = :id", [':id' => $id]);
+            $_SESSION['sucesso'] = "Categoria removida com sucesso!";
+        }
+
+        $this->redirect('?controller=Categoria&action=index');
     }
 }

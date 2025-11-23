@@ -1,49 +1,143 @@
 <?php
-// Controller: PromocaoController
-// Propósito: Controlar as promoções dos produtos.
-// Observação: Código simples e pronto para integrar com DB depois.
 
-class PromocaoController
+namespace App\Controllers;
+
+use App\Core\Controller;
+use App\Core\Database;
+use PDO;
+
+class PromocaoController extends Controller
 {
-    // Lista promoções
+    private $db;
+
+    public function __construct()
+    {
+        $this->auth();
+        $this->db = Database::getInstance();
+    }
+
     public function index()
     {
-        require_once __DIR__ . '/../views/promocoes/index.php';
+        $stmt = $this->db->query("
+            SELECT * FROM promocoes 
+            ORDER BY prm_data_fim DESC, prm_id DESC
+        ");
+        $promocoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $this->view('promocoes/index', [
+            'titulo'    => 'Promoções',
+            'promocoes' => $promocoes,
+            'page'      => 'promocoes'
+        ]);
     }
 
-    // Formulário de criação
-    public function criar()
+    public function create()
     {
-        require_once __DIR__ . '/../views/promocoes/criar.php';
+        $this->view('promocoes/create', [
+            'titulo' => 'Nova Promoção',
+            'page'   => 'promocoes'
+        ]);
     }
 
-    // Salvar promoção
-    public function salvar()
+    public function store()
     {
-        // Aqui entra a lógica de salvar no banco
-        header("Location: /encomendas-do-chef---gestor/?controller=Promocao&action=index");
-        exit;
+        $nome        = trim($_POST['nome'] ?? '');
+        $descricao   = trim($_POST['descricao'] ?? '');
+        $tipo        = $_POST['tipo'] ?? 'percentual';
+        $valor       = str_replace(',', '.', $_POST['valor'] ?? 0);
+        $data_inicio = $_POST['data_inicio'] ?? null;
+        $data_fim    = $_POST['data_fim'] ?? null;
+        $ativo       = isset($_POST['ativo']) ? 1 : 0;
+
+        if (empty($nome) || empty($valor) || empty($data_inicio) || empty($data_fim)) {
+            $_SESSION['erro'] = "Preencha todos os campos obrigatórios!";
+            $this->redirect('?controller=Promocao&action=create');
+        }
+
+        $this->db->query("
+            INSERT INTO promocoes 
+            (prm_nome, prm_descricao, prm_tipo, prm_valor, prm_data_inicio, prm_data_fim, ativo)
+            VALUES (:nome, :desc, :tipo, :valor, :ini, :fim, :ativo)
+        ", [
+            ':nome'  => $nome,
+            ':desc'  => $descricao,
+            ':tipo'  => $tipo,
+            ':valor' => $valor,
+            ':ini'   => $data_inicio,
+            ':fim'   => $data_fim,
+            ':ativo' => $ativo
+        ]);
+
+        $_SESSION['sucesso'] = "Promoção criada com sucesso!";
+        $this->redirect('?controller=Promocao&action=index');
     }
 
-    // Editar promoção
-    public function editar()
+    public function edit($id = null)
     {
-        require_once __DIR__ . '/../views/promocoes/editar.php';
+        $id = $id ?? $_GET['id'] ?? null;
+        $promocao = $this->db->query("SELECT * FROM promocoes WHERE prm_id = :id", [':id' => $id])
+                             ->fetch(PDO::FETCH_ASSOC);
+
+        if (!$promocao) {
+            $_SESSION['erro'] = "Promoção não encontrada!";
+            $this->redirect('?controller=Promocao&action=index');
+        }
+
+        $this->view('promocoes/edit', [
+            'titulo'   => 'Editar Promoção',
+            'promocao' => $promocao,
+            'page'     => 'promocoes'
+        ]);
     }
 
-    // Atualizar promoção
-    public function atualizar()
+    public function update($id = null)
     {
-        // Lógica de update
-        header("Location: /encomendas-do-chef---gestor/?controller=Promocao&action=index");
-        exit;
+        $id          = $id ?? $_POST['id'] ?? null;
+        $nome        = trim($_POST['nome'] ?? '');
+        $descricao   = trim($_POST['descricao'] ?? '');
+        $tipo        = $_POST['tipo'] ?? 'percentual';
+        $valor       = str_replace(',', '.', $_POST['valor'] ?? 0);
+        $data_inicio = $_POST['data_inicio'] ?? null;
+        $data_fim    = $_POST['data_fim'] ?? null;
+        $ativo       = isset($_POST['ativo']) ? 1 : 0;
+
+        if (empty($nome) || empty($valor) || empty($data_inicio) || empty($data_fim) || empty($id)) {
+            $_SESSION['erro'] = "Preencha todos os campos!";
+            $this->redirect("?controller=Promocao&action=edit&id=$id");
+        }
+
+        $this->db->query("
+            UPDATE promocoes SET
+                prm_nome = :nome,
+                prm_descricao = :desc,
+                prm_tipo = :tipo,
+                prm_valor = :valor,
+                prm_data_inicio = :ini,
+                prm_data_fim = :fim,
+                ativo = :ativo
+            WHERE prm_id = :id
+        ", [
+            ':nome'  => $nome,
+            ':desc'  => $descricao,
+            ':tipo'  => $tipo,
+            ':valor' => $valor,
+            ':ini'   => $data_inicio,
+            ':fim'   => $data_fim,
+            ':ativo' => $ativo,
+            ':id'    => $id
+        ]);
+
+        $_SESSION['sucesso'] = "Promoção atualizada com sucesso!";
+        $this->redirect('?controller=Promocao&action=index');
     }
 
-    // Excluir promoção
-    public function excluir()
+    public function delete($id = null)
     {
-        // Lógica de delete
-        header("Location: /encomendas-do-chef---gestor/?controller=Promocao&action=index");
-        exit;
+        $id = $id ?? $_GET['id'] ?? null;
+        if ($id) {
+            $this->db->query("DELETE FROM promocoes WHERE prm_id = :id", [':id' => $id]);
+            $_SESSION['sucesso'] = "Promoção excluída com sucesso!";
+        }
+        $this->redirect('?controller=Promocao&action=index');
     }
 }

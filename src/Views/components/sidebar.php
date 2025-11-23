@@ -1,101 +1,64 @@
 <?php
-$currentController = $_GET['controller'] ?? '';
-$isAjuda = ($currentController === 'Ajuda');
+$currentPage = $_GET['controller'] ?? 'dashboard';
 ?>
 
-<style>
-    .sidebar {
-        width: 250px;
-        background: linear-gradient(135deg, #C0392B, #E74C3C); 
-        color: #fff;
-        height: calc(100vh - 60px); 
-        position: fixed;
-        top: 60px; 
-        left: 0;
-        padding: 25px 0;
-        box-sizing: border-box;
-        overflow-y: auto; 
-        z-index: 900; 
-        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2); 
-        border-right: 1px solid rgba(255, 255, 255, 0.1); 
-    }
+<aside class="main-sidebar sidebar-dark-primary elevation-4">
+    <a href="index.php?controller=Dashboard" class="brand-link text-center">
+        <span class="brand-text font-weight-light"><strong>Encomendas do Chef</strong></span>
+    </a>
 
-    .sidebar-header {
-        padding: 15px 20px;
-        text-align: center;
-        background: rgba(0, 0, 0, 0.2); 
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 20px;
-    }
+    <div class="sidebar">
+        <nav class="mt-2">
+            <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
+                <li class="nav-item">
+                    <a href="index.php?controller=Dashboard" class="nav-link <?= $currentPage === 'Dashboard' ? 'active' : '' ?>">
+                        <i class="nav-icon fas fa-tachometer-alt"></i>
+                        <p>Dashboard</p>
+                    </a>
+                </li>
 
-    .sidebar-header h2 {
-        margin: 0;
-        font-size: 1.4em;
-        color: #FFD700; 
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); 
-        font-weight: 600;
-    }
+                <li class="nav-item">
+                    <a href="index.php?controller=Pedido" class="nav-link <?= $currentPage === 'Pedido' ? 'active' : '' ?>">
+                        <i class="nav-icon fas fa-shopping-cart"></i>
+                        <p>Pedidos</p>
+                    </a>
+                </li>
 
-    .sidebar a {
-        display: block; 
-        padding: 12px 20px;
-        color: #fff;
-        text-decoration: none;
-        font-size: 1.5em;
-        font-family: Arial, Helvetica, sans-serif;
-        transition: all 0.3s ease; 
-        position: relative; 
-    }
+                <li class="nav-item">
+                    <a href="index.php?controller=Produto" class="nav-link <?= $currentPage === 'Produto' ? 'active' : '' ?>">
+                        <i class="nav-icon fas fa-box"></i>
+                        <p>Produtos</p>
+                    </a>
+                </li>
 
-    .sidebar a::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 20px;
-        width: 0;
-        height: 2px;
-        background-color: #FFD700; 
-        transition: width 0.3s ease;
-    }
+                <li class="nav-item">
+                    <a href="index.php?controller=Categoria" class="nav-link <?= $currentPage === 'Categoria' ? 'active' : '' ?>">
+                        <i class="nav-icon fas fa-tags"></i>
+                        <p>Categorias</p>
+                    </a>
+                </li>
 
-    .sidebar a:hover {
-        background-color: rgba(255, 255, 255, 0.1); 
-    }
+                <li class="nav-item">
+                    <a href="index.php?controller=Promocao" class="nav-link <?= $currentPage === 'Promocao' ? 'active' : '' ?>">
+                        <i class="nav-icon fas fa-percentage"></i>
+                        <p>Promoções</p>
+                    </a>
+                </li>
 
-    .sidebar a:hover::after {
-        width: calc(100% - 40px); 
-    }
+                <li class="nav-item">
+                    <a href="index.php?controller=Relatorio&action=vendas" class="nav-link <?= $currentPage === 'Relatorio' ? 'active' : '' ?>">
+                        <i class="nav-icon fas fa-chart-bar"></i>
+                        <p>Relatórios</p>
+                    </a>
+                </li>
 
-    .sidebar a.active {
-        background-color: #f4c430; 
-        color: #000; 
-        font-weight: bold;
-    }
-
-    .sidebar a.active:hover {
-        background-color: #e0b12a; 
-    }
-
-    #overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 800; 
-    }
-</style>
-
-<div id="overlay" class="overlay" onclick="toggleSidebar()"></div>
-
-
-<div id="sidebar" class="sidebar">
-    
-    <a href="index.php?controller=Perfil&action=index" class="<?= strpos($currentPath, '/perfil') !== false ? 'active' : '' ?>">Monitorar Pedidos</a>
-    <a href="index.php?controller=Carrinho&action=visualizar" class="<?= strpos($currentPath, '/carrinho') !== false ? 'active' : '' ?>">Gerar Relatório</a>
-    <a href="index.php?controller=Pedido&action=listar" class="<?= strpos($currentPath, '/pedido') !== false ? 'active' : '' ?>">Gestão de Promoção</a>
-    <a href="index.php?controller=Configuracoes&action=index" class="<?= strpos($currentPath, '/configuracoes') !== false ? 'active' : '' ?>">Gerenciar Cardápio</a>
-   <a href="index.php?controller=Ajuda&action=index" class="<?= $isAjuda ? 'active' : '' ?>">Ajuda</a>
-</div>
+                <li class="nav-item mt-5">
+                    <a href="index.php?controller=Auth&action=sair" class="nav-link text-danger">
+                        <i class="nav-icon fas fa-sign-out-alt"></i>
+                        <p>Sair</p>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+</aside>
